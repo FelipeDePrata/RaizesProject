@@ -1,5 +1,8 @@
-import sqlite3
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
 
-connection = sqlite3.connect('cliente.db')
+db = create_engine("sqlite:///raizesdosertao.db")
+Session = sessionmaker(bind=db)
+session = Session()
 
-cursor = connection.cursor()
+Base = declarative_base()
