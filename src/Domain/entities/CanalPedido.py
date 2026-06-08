@@ -1,6 +1,5 @@
 from enum import Enum
 
-
 class CanalPedido(Enum):
     APP = 1
     TOTEM = 2

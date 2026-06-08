@@ -1,14 +1,18 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-from database.models import pedidoTabela
+SQLALCHEMY_DATABASE_URL = "sqlite:///raizesdosertao.db"
 
-db = create_engine("sqlite:///raizesdosertao.db")
-Session = sessionmaker(bind=db)
-session = Session()
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread":False})    
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+session = SessionLocal()
 
 Base = declarative_base()
 
-pedido = pedidoTabela.Pedido(status=True ,valor_total=10.87, canal_pedido="APP")
-session.add(pedido)
-session.commit()
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+    
