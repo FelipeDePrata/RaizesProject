@@ -1,45 +1,95 @@
-from sqlalchemy import Column, String, Integer, ForeignKey, Boolean, Float, Enum as SQLEnum
+from sqlalchemy import Column, String, Integer, ForeignKey, Boolean, Float, Enum as SQLEnum, DateTime
+from sqlalchemy.orm import relationship
 from src.Domain.entities.CanalPedido import CanalPedido
 from src.Infrastructure.database.config import Base
+import datetime
+
+class PratoPedidoModel(Base):
+    __tablename__ = "prato_pedido"
+    id_prato_pedido = Column(Integer, primary_key=True, autoincrement=True)
+    quantidade = Column(Integer, nullable=False)
+
+    #Chaves estrangeiras
+    id_pedido = Column(Integer, ForeignKey("pedidos.id_pedido"))
+    id_prato = Column(Integer, ForeignKey("pratos.id_prato"))
+
+    #Relacionamentos
+    pedido = relationship("PedidoModel", back_populates="itens")
+    prato = relationship("PratoModel")
+
+
+class UnidadeModel(Base):
+    __tablename__ = "unidades"
+    id_unidade = Column(Integer, primary_key=True, autoincrement=True)
+    nome = Column(String, nullable=False)
+    cnpj = Column(String, unique=True, nullable=False)
+    endereco = Column(String)
+    telefone = Column(String)
+
+    #Relacionamentos
+    pedidos = relationship("PedidoModel", back_populates="unidade")
+    estoque = relationship("EstoqueModel", back_populates="unidade", uselist=False)
+
+
+class ClienteModel(Base):
+    __tablename__ = "clientes"
+    id_cliente = Column(Integer, primary_key=True, autoincrement=True)
+    nome = Column(String, nullable=False)
+    email = Column(String, nullable=False, unique=True)
+    senha = Column(String, nullable=False)
+    telefone = Column(String)
+    endereco = Column(String)
+    cpf = Column(String, unique=True)
+
+    #Relacionamentos
+    pedidos = relationship("PedidoModel", back_populates="cliente")
+
 
 class PedidoModel(Base):
-    __tablename__ = "pedidos" 
-    id = Column("id",Integer, primary_key=True, autoincrement=True, unique=True)
-    status = Column("status", Boolean)
-    valor_total = Column("valor_total", Float)
-    canal_pedido = Column("canalPedido", SQLEnum(CanalPedido))
-    
-class ClienteModel(Base):
-    __tablename__ = "clientes" 
-    id = Column("id",Integer, primary_key=True, autoincrement=True, unique=True)
-    email = Column("email", String, nullable=False, unique=True)
-    senha = Column("senha", nullable=False)
-    telefone = Column("telefone", Integer)
-    endereco = Column("endereco", String)
-    cpf = Column("cpf", String)
+    __tablename__ = "pedidos"
+    id_pedido = Column(Integer, primary_key=True, autoincrement=True, unique=True)
+    data_hora = Column(DateTime, default=datetime.datetime.utcnow)
+    status = Column(String, default="AGUARDANDO_PAGAMENTO")
+    valor_total = Column(Float, default=0.0)
+    canal_pedido = Column("canalPedido", SQLEnum(CanalPedido), nullable=False)
 
-class FuncionarioModel(Base):
-    __tablename__ = "funcionarios"
-    id = Column("id",Integer, primary_key=True, autoincrement=True, unique=True)
-    email = Column("email", String)
-    telefone = Column("telefone", Integer)
-    endereco = Column("endereco", String)
-    cpf = Column("cpf", String)
-    setor = Column("setor", String)
+    #Chaves estrangeiras
+    id_unidade = Column(Integer, ForeignKey("unidades.id_unidade"))
+    id_cliente = Column(Integer, ForeignKey("clientes.id_cliente"))
+
+    #Relacionamentos
+    unidade = relationship("UnidadeModel", back_populates="pedidos")
+    cliente = relationship("ClienteModel", back_populates="pedidos")
+    itens = relationship("PratoPedidoModel", back_populates="pedido")
+    pagamento = relationship("GatewayModel", back_populates="pedido", uselist=False)
+
+
+class PratoModel(Base):
+    __tablename__ = "pratos"
+    id_prato = Column(Integer, primary_key=True, autoincrement=True)
+    nome = Column(String, nullable=False)
+    preco = Column(Float, nullable=False)
+    descricao = Column(String)
+
+
+class GatewayModel(Base):
+    __tablename__ = "gateway_pagamento"
+    id_pagamento = Column(Integer, primary_key=True, autoincrement=True)
+    valor_pagamento = Column(Float, nullable=False)
+    data_pagamento = Column(DateTime, default=datetime.datetime.utcnow)
+    forma_pagamento = Column(String, nullable=False)
+    status_pagamento = Column(String, nullable=False)
+
+    #Chave estrangeira
+    id_pedido = Column(Integer, ForeignKey("pedidos.id_pedido"))
+    pedido = relationship("PedidoModel", back_populates="pagamento")
 
 
 class EstoqueModel(Base):
     __tablename__ = "estoques"
-    id_estoque = Column("id", Integer, primary_key=True, unique=True)
-    unidade_restaurante = Column("unidade", String)
-    
-class Ingrediente(Base):
-    __tablename__ = "ingredientes"
-    id_ingrediente = Column("id", primary_key=True, unique=True)
-    nome = Column("nome", String)
+    id_estoque = Column(Integer, primary_key=True, autoincrement=True)
+    unidade_restaurante = Column(String)
 
-class Prato(Base):
-    __tablename__ = "pratos"
-    id_prato = Column("id", primary_key=True, unique=True)
-    nome = Column("nome", String)
-    valor = Column("valor", Float)
+    #Chave estrangeira
+    id_unidade = Column(Integer, ForeignKey("unidades.id_unidade"))
+    unidade = relationship("UnidadeModel", back_populates="estoque")
