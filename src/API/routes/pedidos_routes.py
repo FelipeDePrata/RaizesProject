@@ -8,23 +8,10 @@ from src.Infrastructure.integrations.pagamento_mock import simular_gateway_pagam
 from pydantic import BaseModel
 from src.API.schemas.all_schema import PedidoCreate
 from src.Application.services.crud import create_pedido
+from src.API.middlewares.auth import validar_token
+from src.API.utils.response import erro_padrao
 
 router = APIRouter(prefix="/pedidos", tags=["Pedidos"])
-
-#Padrão de erro.
-def erro_padrao(status_code: int, error: str, message: str, path: str, details: list = None):
-    if details is None:
-        details = []
-    return JSONResponse(
-        status_code=status_code,
-        content={
-            "error": error,
-            "message": message,
-            "details": details,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
-            "path": path
-        }
-    )
 
 #Schema temporário apenas para receber a forma de pagamento na rota.
 class PagamentoRequest(BaseModel):
@@ -101,16 +88,14 @@ def processar_pagamento(id_pedido: int, payload: PagamentoRequest, request: Requ
 #Abaixo, está o fluxo e endpoint para criar um novo pedido, validar multicanalidade e calcular total de pedido.
 
 @router.post("", status_code=201)
-def criar_pedido(payload: PedidoCreate, request: Request, db: Session = Depends(get_db)):
-    #Validação de Unidade.
-    unidade = db.query(UnidadeModel).filter(UnidadeModel.id_unidade == payload.unidadeId).first()
-    if not unidade:
-        return erro_padrao(
-            status_code=404,
-            error="UNIDADE_NAO_ENCONTRADA",
-            message=f"A unidade com ID {payload.unidadeId} não existe.",
-            path=request.url.path
-        )
+def criar_pedido(
+    #A rota exige o token. Caso contrário, retorna 401.
+    payload: PedidoCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    usuario_logado: dict = Depends(validar_token)
+):
+    pass
 
     #Validação e cálculo total de produtos.
     valor_total_calculado = 0.0
