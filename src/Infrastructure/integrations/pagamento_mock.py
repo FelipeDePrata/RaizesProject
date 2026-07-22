@@ -7,10 +7,8 @@ def simular_gateway_pagamento(id_pedido: int, valor_total: float, forma_pagament
 
     #Simulação do tempo de resposta e o retorno de uma API de pagamento externa.
 
-
-    #REGRA PARA TESTES:
-    #Se a forma de pagamento vier como "ERRO_MOCK", nós forçamos a falha.
-    #Caso contrário, temos 80% de chance de aprovação.
+    #Se a forma de pagamento vier como "ERRO_MOCK", a falha será forçada.
+    #Caso contrário, há 80% de chance de aprovação.
     if forma_pagamento.upper() == "ERRO_MOCK":
         aprovado = False
     else:
