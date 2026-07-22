@@ -70,6 +70,7 @@ class PratoModel(Base):
     nome = Column(String, nullable=False)
     preco = Column(Float, nullable=False)
     descricao = Column(String)
+    saldo_estoque = Column(Integer, default=0)
 
 
 class GatewayModel(Base):
@@ -93,3 +94,12 @@ class EstoqueModel(Base):
     #Chave estrangeira
     id_unidade = Column(Integer, ForeignKey("unidades.id_unidade"))
     unidade = relationship("UnidadeModel", back_populates="estoque")
+
+
+class LogAuditoriaModel(Base):
+    __tablename__ = "logs_auditoria"
+    id_log = Column(Integer, primary_key=True, autoincrement=True)
+    id_usuario = Column(Integer, nullable=False)
+    acao = Column(String, nullable=False)
+    detalhes = Column(String)
+    data_hora = Column(DateTime, default=datetime.datetime.utcnow)

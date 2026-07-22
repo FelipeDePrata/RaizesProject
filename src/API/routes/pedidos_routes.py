@@ -10,6 +10,7 @@ from src.API.schemas.all_schema import PedidoCreate
 from src.Application.services.crud import create_pedido
 from src.API.middlewares.auth import validar_token
 from src.API.utils.response import erro_padrao
+from src.API.utils.audit import registrar_log_auditoria
 
 router = APIRouter(prefix="/pedidos", tags=["Pedidos"])
 
@@ -66,6 +67,12 @@ def processar_pagamento(id_pedido: int, payload: PagamentoRequest, request: Requ
         db.commit()
         db.refresh(pedido)
 
+        registrar_log_auditoria(
+            db=db,
+            id_usuario=pedido.id_cliente,  # Ou o ID do funcionário operando o totem
+            acao="MUDANCA_STATUS",
+            detalhes=f"Status do pedido {pedido.id_pedido} alterado para {pedido.status} após pagamento.")
+
         return {
             "message": "Pagamento aprovado com sucesso!",
             "pedido_id": pedido.id_pedido,
@@ -89,20 +96,29 @@ def processar_pagamento(id_pedido: int, payload: PagamentoRequest, request: Requ
 
 @router.post("", status_code=201)
 def criar_pedido(
-    #A rota exige o token. Caso contrário, retorna 401.
-    payload: PedidoCreate,
-    request: Request,
-    db: Session = Depends(get_db),
-    usuario_logado: dict = Depends(validar_token)
+        payload: PedidoCreate,
+        request: Request,
+        db: Session = Depends(get_db),
+        usuario_logado: dict = Depends(validar_token)
 ):
-    pass
+    #Validação de Unidade.
+    unidade = db.query(UnidadeModel).filter(UnidadeModel.id_unidade == payload.unidadeId).first()
+    if not unidade:
+        return erro_padrao(
+            status_code=404,
+            error="UNIDADE_NAO_ENCONTRADA",
+            message=f"A unidade com ID {payload.unidadeId} não existe.",
+            path=request.url.path
+        )
 
-    #Validação e cálculo total de produtos.
+    #Validação de produtos, estoque e cálculo do total.
     valor_total_calculado = 0.0
     itens_resposta = []
 
     for item in payload.itens:
         prato = db.query(PratoModel).filter(PratoModel.id_prato == item.produtoId).first()
+
+        #Verifica se o produto existe
         if not prato:
             return erro_padrao(
                 status_code=404,
@@ -111,10 +127,23 @@ def criar_pedido(
                 path=request.url.path
             )
 
-        #Calculo do subtotal do item.
+        #Validação do estoque
+        if prato.saldo_estoque < item.quantidade:
+            return erro_padrao(
+                status_code=409,
+                error="ESTOQUE_INSUFICIENTE",
+                message="Não há quantidade suficiente para um ou mais itens.",
+                path=request.url.path,
+                #Diz exatamente qual produto está indisponivel e o saldo.
+                details=[{"field": f"itens.produtoId={prato.id_prato}", "issue": f"Disponível: {prato.saldo_estoque}"}]
+            )
+
+        #Diminui a quantidade no estoque
+        prato.saldo_estoque -= item.quantidade
+
+        #Calcula o subtotal do item
         valor_total_calculado += prato.preco * item.quantidade
 
-        #Montagem da estrutura do item para a resposta JSON.
         itens_resposta.append({
             "produtoId": prato.id_prato,
             "quantidade": item.quantidade,
@@ -123,9 +152,15 @@ def criar_pedido(
 
     novo_pedido = create_pedido(db=db, payload=payload)
 
-    #Atualiza o valor total que foi calculado e salva no banco de dados.
     novo_pedido.valor_total = valor_total_calculado
     db.commit()
+
+    registrar_log_auditoria(
+        db=db,
+        id_usuario=int(usuario_logado["sub"]),
+        acao="CRIACAO_PEDIDO",
+        detalhes=f"Cliente criou o pedido {novo_pedido.id_pedido} no valor de R$ {novo_pedido.valor_total}"
+    )
 
     return {
         "pedidoId": novo_pedido.id_pedido,
